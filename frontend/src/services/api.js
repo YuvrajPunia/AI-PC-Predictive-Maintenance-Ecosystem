@@ -26,11 +26,15 @@ export const api = {
   getPcs: () => request('/api/pcs'),
   getPcById: (id) => request(`/api/pcs/${id}`),
   getPcTelemetry: (id) => request(`/api/pcs/${id}/telemetry`),
+  registerPc: (pcData) => request('/api/pcs', {
+    method: 'POST',
+    body: JSON.stringify(pcData)
+  }),
   
   // AI Diagnostics
-  analyzeComplaint: (pcId, complaint) => request('/api/analyze', {
+  analyzeComplaint: (pcId, complaint, currentReadings = null) => request('/api/analyze', {
     method: 'POST',
-    body: JSON.stringify({ pc_id: pcId, complaint })
+    body: JSON.stringify({ pc_id: pcId, complaint, current_readings: currentReadings })
   }),
   
   // Repairs

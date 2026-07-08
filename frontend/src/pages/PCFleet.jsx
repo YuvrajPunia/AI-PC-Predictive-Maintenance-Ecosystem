@@ -18,6 +18,29 @@ export default function PCFleet() {
   const [telemetry, setTelemetry] = useState([]);
   const [telLoading, setTelLoading] = useState(false);
 
+  // Register PC state
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [newPc, setNewPc] = useState({
+    model_name: '',
+    department: '',
+    location: '',
+    cpu_usage: '',
+    ram_usage: '',
+    temperature: '',
+    voltage: '',
+    disk_usage: '',
+    fan_speed: ''
+  });
+  const [registerErrors, setRegisterErrors] = useState({});
+  const [registerSuccess, setRegisterSuccess] = useState(null);
+  const [registerError, setRegisterError] = useState(null);
+
+  const refreshFleet = () => {
+    api.getPcs()
+      .then(res => setPcs(res))
+      .catch(err => console.error("Failed to refresh: ", err));
+  };
+
   useEffect(() => {
     api.getPcs()
       .then(res => {
@@ -29,6 +52,85 @@ export default function PCFleet() {
         setLoading(false);
       });
   }, []);
+
+  const validateRegisterForm = () => {
+    const errors = {};
+    if (!newPc.model_name.trim()) errors.model_name = "Model name is required";
+    if (!newPc.department.trim()) errors.department = "Department assignment is required";
+    if (!newPc.location.trim()) errors.location = "Location is required";
+    
+    if (newPc.cpu_usage !== '') {
+      const v = parseFloat(newPc.cpu_usage);
+      if (isNaN(v) || v < 0 || v > 100) errors.cpu_usage = "CPU Usage must be 0 to 100%";
+    }
+    if (newPc.ram_usage !== '') {
+      const v = parseFloat(newPc.ram_usage);
+      if (isNaN(v) || v < 0 || v > 100) errors.ram_usage = "RAM Usage must be 0 to 100%";
+    }
+    if (newPc.disk_usage !== '') {
+      const v = parseFloat(newPc.disk_usage);
+      if (isNaN(v) || v < 0 || v > 100) errors.disk_usage = "Disk Usage must be 0 to 100%";
+    }
+    if (newPc.temperature !== '') {
+      const v = parseFloat(newPc.temperature);
+      if (isNaN(v) || v < -20 || v > 150) errors.temperature = "Temperature must be between -20°C and 150°C";
+    }
+    if (newPc.fan_speed !== '') {
+      const v = parseFloat(newPc.fan_speed);
+      if (isNaN(v) || v < 0) errors.fan_speed = "Fan Speed must be non-negative";
+    }
+    if (newPc.voltage !== '') {
+      const v = parseFloat(newPc.voltage);
+      if (isNaN(v) || v <= 0 || v > 30) errors.voltage = "Voltage must be positive and <= 30V";
+    }
+    
+    setRegisterErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateRegisterForm()) return;
+    
+    setRegisterSuccess(null);
+    setRegisterError(null);
+    
+    const payload = {
+      model_name: newPc.model_name.trim(),
+      department: newPc.department.trim(),
+      location: newPc.location.trim(),
+      cpu_usage: newPc.cpu_usage !== '' ? parseFloat(newPc.cpu_usage) : null,
+      ram_usage: newPc.ram_usage !== '' ? parseFloat(newPc.ram_usage) : null,
+      temperature: newPc.temperature !== '' ? parseFloat(newPc.temperature) : null,
+      voltage: newPc.voltage !== '' ? parseFloat(newPc.voltage) : null,
+      disk_usage: newPc.disk_usage !== '' ? parseFloat(newPc.disk_usage) : null,
+      fan_speed: newPc.fan_speed !== '' ? parseFloat(newPc.fan_speed) : null,
+    };
+    
+    try {
+      const registered = await api.registerPc(payload);
+      setRegisterSuccess(`PC ${registered.pc_id} registered successfully!`);
+      refreshFleet();
+      
+      setTimeout(() => {
+        setNewPc({
+          model_name: '',
+          department: '',
+          location: '',
+          cpu_usage: '',
+          ram_usage: '',
+          temperature: '',
+          voltage: '',
+          disk_usage: '',
+          fan_speed: ''
+        });
+        setRegisterSuccess(null);
+        setShowRegisterModal(false);
+      }, 1500);
+    } catch (err) {
+      setRegisterError(err.message || "Failed to register PC");
+    }
+  };
 
   const handleRowClick = async (pc) => {
     setSelectedPc(pc);
@@ -44,8 +146,22 @@ export default function PCFleet() {
     }
   };
 
+  const formatSensorValue = (value, decimals = 1, unit = '') => {
+    return typeof value === "number" && Number.isFinite(value)
+      ? `${value.toFixed(decimals)}${unit}`
+      : "N/A";
+  };
+
   // Helper: Simple frontend health calculation to display list scores
   const estimateHealth = (pc) => {
+    if (
+      pc.cpu_usage === null || pc.cpu_usage === undefined ||
+      pc.ram_usage === null || pc.ram_usage === undefined ||
+      pc.temperature === null || pc.temperature === undefined ||
+      pc.voltage === null || pc.voltage === undefined
+    ) {
+      return null;
+    }
     let score = 100;
     if (pc.temperature > 75) score -= (pc.temperature - 75) * 1.5;
     if (pc.voltage < 12) score -= (12 - pc.voltage) * 8;
@@ -55,6 +171,9 @@ export default function PCFleet() {
   };
 
   const getHealthBand = (score) => {
+    if (score === null || score === undefined) {
+      return { label: 'N/A', color: 'text-gray-400 bg-gray-500/10' };
+    }
     if (score >= 80) return { label: 'Healthy', color: 'text-emerald-400 bg-emerald-500/10' };
     if (score >= 60) return { label: 'Moderate', color: 'text-blue-400 bg-blue-500/10' };
     if (score >= 40) return { label: 'Poor', color: 'text-amber-400 bg-amber-500/10' };
@@ -85,9 +204,18 @@ export default function PCFleet() {
       
       {/* Fleet List Panel */}
       <div className="flex-1 flex flex-col p-6 space-y-4 overflow-y-auto">
-        <div>
-          <h1 className="text-2xl font-bold text-white">DRDO Fleet PC Registry</h1>
-          <p className="text-gray-400 text-sm">Review asset configuration, department allocation, and real-time sensor metrics.</p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-white">DRDO Fleet PC Registry</h1>
+            <p className="text-gray-400 text-sm">Review asset configuration, department allocation, and real-time sensor metrics.</p>
+          </div>
+          <button
+            onClick={() => setShowRegisterModal(true)}
+            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-semibold flex items-center space-x-1.5 transition-colors"
+          >
+            <Monitor className="w-4 h-4" />
+            <span>+ Add New PC</span>
+          </button>
         </div>
 
         {/* Filters */}
@@ -151,12 +279,12 @@ export default function PCFleet() {
                     <td className="p-4">{pc.model_name}</td>
                     <td className="p-4 text-gray-400">{pc.department}</td>
                     <td className="p-4 text-gray-400">{pc.location}</td>
-                    <td className={`p-4 text-center font-semibold ${pc.cpu_usage > 85 ? 'text-amber-400' : ''}`}>{pc.cpu_usage.toFixed(0)}%</td>
-                    <td className={`p-4 text-center font-semibold ${pc.ram_usage > 85 ? 'text-amber-400' : ''}`}>{pc.ram_usage.toFixed(0)}%</td>
-                    <td className={`p-4 text-center font-semibold ${pc.temperature > 75 ? 'text-red-400' : ''}`}>{pc.temperature.toFixed(0)}°C</td>
+                    <td className={`p-4 text-center font-semibold ${pc.cpu_usage > 85 ? 'text-amber-400' : ''}`}>{formatSensorValue(pc.cpu_usage, 0, '%')}</td>
+                    <td className={`p-4 text-center font-semibold ${pc.ram_usage > 85 ? 'text-amber-400' : ''}`}>{formatSensorValue(pc.ram_usage, 0, '%')}</td>
+                    <td className={`p-4 text-center font-semibold ${pc.temperature > 75 ? 'text-red-400' : ''}`}>{formatSensorValue(pc.temperature, 0, '°C')}</td>
                     <td className="p-4">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${band.color}`}>
-                        {health}% ({band.label})
+                        {health !== null ? `${health}%` : 'N/A'} ({band.label})
                       </span>
                     </td>
                   </tr>
@@ -255,6 +383,182 @@ export default function PCFleet() {
             )}
           </div>
 
+        </div>
+      )}
+
+      {/* Register PC Modal */}
+      {showRegisterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[#0B0F19] border border-[#1F2937] w-full max-w-lg rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-[#1F2937] flex justify-between items-center bg-[#0d1321]">
+              <h2 className="text-sm font-bold text-white">Register New Organization PC</h2>
+              <button 
+                onClick={() => setShowRegisterModal(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterSubmit} className="p-5 overflow-y-auto space-y-4 text-xs">
+              
+              {registerSuccess && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold rounded">
+                  {registerSuccess}
+                </div>
+              )}
+              {registerError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 font-bold rounded">
+                  {registerError}
+                </div>
+              )}
+
+              {/* Required Details */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold text-cyan-400 border-b border-[#1F2937] pb-1 uppercase tracking-wider">Required Asset Information</h3>
+                
+                <div className="space-y-1">
+                  <label className="text-gray-400 font-semibold block">Hardware Model Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Dell Latitude 7440"
+                    className="w-full bg-[#030712] border border-[#1F2937] p-2 rounded text-white focus:outline-none focus:border-cyan-500"
+                    value={newPc.model_name}
+                    onChange={(e) => setNewPc({...newPc, model_name: e.target.value})}
+                  />
+                  {registerErrors.model_name && <p className="text-[10px] text-red-400">{registerErrors.model_name}</p>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-gray-400 font-semibold block">Department *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Avionics Division"
+                      className="w-full bg-[#030712] border border-[#1F2937] p-2 rounded text-white focus:outline-none focus:border-cyan-500"
+                      value={newPc.department}
+                      onChange={(e) => setNewPc({...newPc, department: e.target.value})}
+                    />
+                    {registerErrors.department && <p className="text-[10px] text-red-400">{registerErrors.department}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-gray-400 font-semibold block">Physical Location *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Lab 4B, Sector 3"
+                      className="w-full bg-[#030712] border border-[#1F2937] p-2 rounded text-white focus:outline-none focus:border-cyan-500"
+                      value={newPc.location}
+                      onChange={(e) => setNewPc({...newPc, location: e.target.value})}
+                    />
+                    {registerErrors.location && <p className="text-[10px] text-red-400">{registerErrors.location}</p>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Optional Initial Sensors */}
+              <div className="space-y-3 pt-2">
+                <h3 className="text-xs font-bold text-cyan-400 border-b border-[#1F2937] pb-1 uppercase tracking-wider">Initial Telemetry (Optional)</h3>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-gray-400 block">Temperature (°C)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="-20 to 150"
+                      className={`w-full bg-[#030712] border p-2 rounded text-white focus:outline-none focus:border-cyan-500 ${registerErrors.temperature ? 'border-red-500/50' : 'border-[#1F2937]'}`}
+                      value={newPc.temperature}
+                      onChange={(e) => setNewPc({...newPc, temperature: e.target.value})}
+                    />
+                    {registerErrors.temperature && <p className="text-[10px] text-red-400">{registerErrors.temperature}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-gray-400 block">Fan Speed (RPM)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="e.g. 3000"
+                      className={`w-full bg-[#030712] border p-2 rounded text-white focus:outline-none focus:border-cyan-500 ${registerErrors.fan_speed ? 'border-red-500/50' : 'border-[#1F2937]'}`}
+                      value={newPc.fan_speed}
+                      onChange={(e) => setNewPc({...newPc, fan_speed: e.target.value})}
+                    />
+                    {registerErrors.fan_speed && <p className="text-[10px] text-red-400">{registerErrors.fan_speed}</p>}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-gray-400 block">CPU Usage (%)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0 - 100"
+                      className={`w-full bg-[#030712] border p-2 rounded text-white focus:outline-none focus:border-cyan-500 ${registerErrors.cpu_usage ? 'border-red-500/50' : 'border-[#1F2937]'}`}
+                      value={newPc.cpu_usage}
+                      onChange={(e) => setNewPc({...newPc, cpu_usage: e.target.value})}
+                    />
+                    {registerErrors.cpu_usage && <p className="text-[10px] text-red-400">{registerErrors.cpu_usage}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-gray-400 block">RAM Usage (%)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0 - 100"
+                      className={`w-full bg-[#030712] border p-2 rounded text-white focus:outline-none focus:border-cyan-500 ${registerErrors.ram_usage ? 'border-red-500/50' : 'border-[#1F2937]'}`}
+                      value={newPc.ram_usage}
+                      onChange={(e) => setNewPc({...newPc, ram_usage: e.target.value})}
+                    />
+                    {registerErrors.ram_usage && <p className="text-[10px] text-red-400">{registerErrors.ram_usage}</p>}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-gray-400 block">Voltage (V)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0 to 30V"
+                      className={`w-full bg-[#030712] border p-2 rounded text-white focus:outline-none focus:border-cyan-500 ${registerErrors.voltage ? 'border-red-500/50' : 'border-[#1F2937]'}`}
+                      value={newPc.voltage}
+                      onChange={(e) => setNewPc({...newPc, voltage: e.target.value})}
+                    />
+                    {registerErrors.voltage && <p className="text-[10px] text-red-400">{registerErrors.voltage}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-gray-400 block">Disk Usage (%)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="0 - 100"
+                      className={`w-full bg-[#030712] border p-2 rounded text-white focus:outline-none focus:border-cyan-500 ${registerErrors.disk_usage ? 'border-red-500/50' : 'border-[#1F2937]'}`}
+                      value={newPc.disk_usage}
+                      onChange={(e) => setNewPc({...newPc, disk_usage: e.target.value})}
+                    />
+                    {registerErrors.disk_usage && <p className="text-[10px] text-red-400">{registerErrors.disk_usage}</p>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="pt-4 flex space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowRegisterModal(false)}
+                  className="flex-1 py-2 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold text-center transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-center transition-colors"
+                >
+                  Register PC
+                </button>
+              </div>
+
+            </form>
+          </div>
         </div>
       )}
 
