@@ -1,0 +1,90 @@
+{
+    "problem_classification": {
+        "selected_model": "HistGradientBoostingClassifier",
+        "all_model_metrics": {
+            "LogisticRegression": {
+                "accuracy": 0.1925,
+                "macro_precision": 0.18429202028697403,
+                "macro_recall": 0.19175219866809007,
+                "macro_f1": 0.18616976145993397
+            },
+            "RandomForestClassifier": {
+                "accuracy": 0.1925,
+                "macro_precision": 0.1900037030854446,
+                "macro_recall": 0.19220858116008338,
+                "macro_f1": 0.19007961829234402
+            },
+            "ExtraTreesClassifier": {
+                "accuracy": 0.2,
+                "macro_precision": 0.19581281352707142,
+                "macro_recall": 0.1992189302487457,
+                "macro_f1": 0.1958118033098985
+            },
+            "HistGradientBoostingClassifier": {
+                "accuracy": 0.2125,
+                "macro_precision": 0.21024501347365837,
+                "macro_recall": 0.21160769660922168,
+                "macro_f1": 0.2107379364950075
+            }
+        }
+    },
+    "complaint_nlp_classification": {
+        "model": "TfidfVectorizer + LogisticRegression",
+        "accuracy": 1.0,
+        "macro_f1": 1.0
+    },
+    "anomaly_detection": {
+        "model": "IsolationForest",
+        "contamination": 0.08,
+        "score_mapping_bounds": {
+            "min_raw_decision": -0.09590803412617865,
+            "max_raw_decision": 0.1228231657140264
+        }
+    },
+    "health_regression": {
+        "selected_model": "GradientBoostingRegressor",
+        "all_model_metrics": {
+            "LinearRegression": {
+                "mae": 8.999745207770387,
+                "r2": 0.5483206002748419
+            },
+            "RandomForestRegressor": {
+                "mae": 8.775731339154369,
+                "r2": 0.5527309161321041
+            },
+            "ExtraTreesRegressor": {
+                "mae": 8.681308325903101,
+                "r2": 0.5364427906284237
+            },
+            "GradientBoostingRegressor": {
+                "mae": 8.552194958071533,
+                "r2": 0.5804421446358023
+            }
+        }
+    },
+    "failure_prediction": {
+        "risk_regressor": "RandomForestRegressor",
+        "risk_regressor_mae": 10.21342722089572,
+        "will_fail_soon_classifier": "RandomForestClassifier",
+        "will_fail_soon_accuracy": 0.8925,
+        "will_fail_soon_f1": 0.889584336382603
+    },
+    "rul_prediction": {
+        "model": "RandomForestRegressor",
+        "mae_days": 41.15887500000001
+    },
+    "fleet_clustering": {
+        "model": "KMeans(k=4)",
+        "clusters": {
+            "0": "Voltage-Instability Profile",
+            "1": "Voltage-Instability Profile",
+            "2": "Elevated-Thermal Profile",
+            "3": "Voltage-Instability Profile"
+        },
+        "counts": {
+            "Voltage-Instability Profile": 81,
+            "Elevated-Thermal Profile": 19
+        }
+    },
+    "timestamp": "2026-07-07T19:18:22.152120"
+}
