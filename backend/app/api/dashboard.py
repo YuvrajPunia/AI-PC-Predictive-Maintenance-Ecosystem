@@ -98,7 +98,7 @@ def get_dashboard_overview(
                 "DiskUsage": pc.disk_usage,
                 "FanSpeed": pc.fan_speed
             }
-            res = ps.run_inference(pc_dict, "")
+            res = ps.run_inference(pc_dict, "", explain=False)
             
             h = res["predictive_health"]["health_score"]
             r_level = res["predictive_health"]["risk_level"]

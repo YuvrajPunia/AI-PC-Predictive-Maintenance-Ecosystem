@@ -48,7 +48,7 @@ class PredictionService:
         except Exception as e:
             print(f"PredictionService: Error loading models: {str(e)}")
 
-    def run_inference(self, pc_row: dict, complaint_text: str, telemetry_history: list = None) -> dict:
+    def run_inference(self, pc_row: dict, complaint_text: str, telemetry_history: list = None, explain: bool = True) -> dict:
         """
         Executes the entire predictive and explainability pipeline.
         Returns a complete structured analysis payload with deterministic safety indicators.
@@ -249,8 +249,10 @@ class PredictionService:
         risk_index, _ = RiskService.calculate_risk_index(health_score, failure_risk, normalized_anom_score)
 
         # 9. Local Explainability
-        explainer = self.models.get('explainer')
-        top_contribs = explainer.explain_instance(cls_model, X_processed, prediction_type="problem")
+        top_contribs = []
+        if explain:
+            explainer = self.models.get('explainer')
+            top_contribs = explainer.explain_instance(cls_model, X_processed, prediction_type="problem")
 
         # 10. Trend Forecasting
         forecasting = self.run_forecasting(telemetry_history)
