@@ -8,11 +8,13 @@ from backend.app.services.pc_service import PCService
 router = APIRouter(prefix="/api/pcs", tags=["PCs"])
 
 @router.get("", response_model=List[PCRead])
+@router.get("/", response_model=List[PCRead])
 def list_pcs(db: Session = Depends(get_db)):
     """Retrieves all registered PCs in the organization fleet."""
     return PCService.get_all_pcs(db)
 
 @router.post("", response_model=PCRead)
+@router.post("/", response_model=PCRead)
 def register_pc(pc_in: PCCreate, db: Session = Depends(get_db)):
     """Registers a new PC asset in the fleet (sensors are optional)."""
     return PCService.register_pc(db, pc_in)
