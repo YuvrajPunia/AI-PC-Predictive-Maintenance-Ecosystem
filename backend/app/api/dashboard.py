@@ -81,8 +81,7 @@ def get_dashboard_overview(
     # Fleet ML analysis using authoritative PredictionService
     # ---------------------------------------------------------
     if total_pcs > 0:
-        from backend.app.services.prediction_service import PredictionService
-        ps = PredictionService()
+        from backend.app.api.predictions import prediction_service as ps
 
         health_sum = 0.0
         for pc in pcs:
