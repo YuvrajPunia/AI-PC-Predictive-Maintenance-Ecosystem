@@ -26,6 +26,23 @@ app.include_router(predictions.router)
 app.include_router(repairs.router)
 app.include_router(dashboard.router)
 
+@app.on_event("startup")
+def startup_event():
+    # Automatically initialize SQLite tables and seed if database is missing
+    from backend.app.database import engine, SessionLocal, Base
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        from backend.app.models.database_models import PC
+        if db.query(PC).count() == 0:
+            print("Database is empty. Seeding database automatically on startup...")
+            from backend.seed_database import seed_sqlite
+            seed_sqlite()
+    except Exception as e:
+        print(f"Error seeding database at startup: {e}")
+    finally:
+        db.close()
+
 @app.get("/")
 def root():
     return {
@@ -45,11 +62,10 @@ def api_health():
         'complaint_classifier.pkl',
         'anomaly_detector.pkl',
         'anomaly_scaler.pkl',
-        'health_regressor.pkl',
-        'failure_risk_regressor.pkl',
-        'failure_classifier.pkl',
-        'rul_regressor.pkl',
-        'fleet_clusterer.pkl',
+        'ood_detector.pkl',
+        'ood_scaler.pkl',
+        'ood_metadata.json',
+        'explainer.pkl',
         'repair_embeddings.npy',
         'repair_embedding_metadata.json'
     ]

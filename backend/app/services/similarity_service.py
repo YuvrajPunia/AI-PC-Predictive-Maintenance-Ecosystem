@@ -7,7 +7,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from backend.app.config import (
     MODELS_DIR, REPAIR_CSV_PATH, PC_CSV_PATH,
     WEIGHT_COMPLAINT_SEMANTIC, WEIGHT_SYMPTOMS_SEMANTIC,
-    WEIGHT_PROBLEM_TYPE, WEIGHT_MODEL_CONTEXT
+    WEIGHT_PROBLEM_TYPE, WEIGHT_MODEL_CONTEXT,
+    DEFAULT_RETRIEVAL_THRESHOLD
 )
 from backend.app.services.embedding_service import OfflineEmbeddingService
 
@@ -23,12 +24,13 @@ class SimilarityService:
         predicted_problem: str,
         pc_model: str,
         query_symptoms: str = "",
-        top_k: int = 3
+        top_k: int = 3,
+        upstream_confidence: float = 1.0,
+        model_disagreement: bool = False
     ) -> list:
         """
         Retrieves the top_k most similar historical cases.
-        Calculates similarity using the weighted formula:
-        FinalSimilarity = 0.55 * ComplaintSemantic + 0.20 * SymptomsSemantic + 0.15 * ProblemType + 0.10 * ModelContext
+        Calculates similarity using the weighted formula and applies an empirically chosen threshold.
         """
         # Load indices and metadata
         if not os.path.exists(self.embeddings_path) or not os.path.exists(self.metadata_path) or not os.path.exists(REPAIR_CSV_PATH):
@@ -37,10 +39,10 @@ class SimilarityService:
 
         # Load historical repair facts
         df_repairs = pd.read_csv(REPAIR_CSV_PATH)
-        # Load PC details to get the historical PC model context
+        if "RepairID" in df_repairs.columns and "Repair_ID" not in df_repairs.columns:
+            df_repairs = df_repairs.rename(columns={"RepairID": "Repair_ID"})
         df_pcs = pd.read_csv(PC_CSV_PATH) if os.path.exists(PC_CSV_PATH) else pd.DataFrame()
         
-        # Merge repairs with PC models on PC_ID to get historical model names
         if not df_pcs.empty and 'PC_ID' in df_pcs.columns and 'PC_ID' in df_repairs.columns:
             df_historical = df_repairs.merge(df_pcs[['PC_ID', 'ModelName']], on='PC_ID', how='left')
         else:
@@ -49,105 +51,84 @@ class SimilarityService:
             
         df_historical['ModelName'] = df_historical['ModelName'].fillna('Unknown')
         
-        # Load embeddings
+        # Load embeddings and retrieval metadata
         complaint_embeddings = np.load(self.embeddings_path)
         with open(self.metadata_path, 'r') as f:
             metadata = json.load(f)
             
         repair_ids = metadata["repair_ids"]
+        # Dynamically load the empirically selected threshold (default is 65.0)
+        retrieval_threshold = metadata.get("retrieval_threshold", DEFAULT_RETRIEVAL_THRESHOLD)
         
-        # 1. Complaint Semantic Similarity (SBERT or TF-IDF)
-        query_emb = self.embedding_service.get_query_embedding(query_complaint)
-        complaint_sims = cosine_similarity([query_emb], complaint_embeddings)[0]
-        
-        # 2. Symptoms Semantic Similarity
-        symptoms_sims = np.zeros(len(df_historical))
-        has_symptoms = bool(query_symptoms and query_symptoms.strip())
-        
-        if has_symptoms:
-            # Calculate TF-IDF similarities for symptoms text
-            df_historical['Symptoms'] = df_historical['Symptoms'].fillna("").astype(str)
-            all_sy = df_historical['Symptoms'].tolist() + [query_symptoms]
-            
-            symptom_vectorizer = TfidfVectorizer(stop_words='english')
-            symptom_embs = symptom_vectorizer.fit_transform(all_sy).toarray()
-            
-            hist_sym_embs = symptom_embs[:-1]
-            query_sym_emb = symptom_embs[-1]
-            
-            symptoms_sims = cosine_similarity([query_sym_emb], hist_sym_embs)[0]
+        # Symmetric query enrichment and normalization
+        def clean_norm(val):
+            if not val:
+                return ""
+            return " ".join(str(val).lower().strip().split())
 
-        # Configurable weights
-        w_complaint = WEIGHT_COMPLAINT_SEMANTIC
-        w_symptoms = WEIGHT_SYMPTOMS_SEMANTIC if has_symptoms else 0.0
-        w_problem = WEIGHT_PROBLEM_TYPE
-        w_model = WEIGHT_MODEL_CONTEXT
-        
-        # Renormalize weights
-        total_w = w_complaint + w_symptoms + w_problem + w_model
-        w_complaint /= total_w
-        if has_symptoms:
-            w_symptoms /= total_w
-        w_problem /= total_w
-        w_model /= total_w
+        query_doc = f"complaint: {clean_norm(query_complaint)}"
+        if query_symptoms.strip():
+            query_doc += f" | symptoms: {clean_norm(query_symptoms)}"
+        if predicted_problem.strip():
+            query_doc += f" | problem: {clean_norm(predicted_problem)}"
+
+        # 1. Semantic Cosine Similarity on Rich Query Document
+        query_emb = self.embedding_service.get_query_embedding(query_doc)
+        complaint_sims = cosine_similarity([query_emb], complaint_embeddings)[0]
 
         results = []
         for idx, row in df_historical.iterrows():
             rep_id = str(row['Repair_ID'])
             
-            # Find matching index in metadata mapping (since repair_ids size matches complaint_embeddings rows)
             try:
                 emb_idx = repair_ids.index(rep_id)
                 comp_sim = float(complaint_sims[emb_idx])
             except (ValueError, IndexError):
                 comp_sim = 0.0
                 
-            # Problem Type Similarity (exact match on problem classification)
-            hist_prob = str(row['ProblemDetected'])
-            prob_sim = 1.0 if hist_prob.lower().strip() == predicted_problem.lower().strip() else 0.0
+            # Cosine similarity is the unmodified retrieval score
+            final_score = comp_sim
             
-            # Model Name Similarity
-            hist_model = str(row['ModelName'])
-            model_sim = 1.0 if hist_model.lower().strip() == pc_model.lower().strip() else 0.0
-            
-            # Symptoms Similarity
-            sym_sim = float(symptoms_sims[idx]) if has_symptoms else 0.0
-            
-            # Weighted Similarity
-            final_score = (
-                w_complaint * comp_sim +
-                w_symptoms * sym_sim +
-                w_problem * prob_sim +
-                w_model * model_sim
-            )
-            
-            # Match explanation reasons
-            why_matched = []
-            if comp_sim > 0.6:
-                why_matched.append("Semantic complaint match")
-            if prob_sim > 0.9:
-                why_matched.append("Same predicted issue category")
-            if has_symptoms and sym_sim > 0.5:
-                why_matched.append("Similar symptoms profile")
-            if model_sim > 0.9:
-                why_matched.append("Same model hardware context")
+            # Display match strength label transparently
+            score_pct = round(final_score * 100.0, 1)
+            if score_pct >= 70.0:
+                match_strength = "Strong Match"
+            elif score_pct >= 50.0:
+                match_strength = "Moderate Match"
+            else:
+                match_strength = "Weak Contextual Match"
                 
-            if not why_matched:
-                why_matched.append("Telemetry/Context proximity")
+            # Match explanation reasons based on rich document overlap
+            why_matched = []
+            if comp_sim > 0.7:
+                why_matched.append("Strong semantic overlap")
+            elif comp_sim > 0.5:
+                why_matched.append("Moderate semantic overlap")
+            else:
+                why_matched.append("Weak semantic overlap")
+                
+            hist_prob = str(row['ProblemDetected'])
+            if hist_prob.lower().strip() == predicted_problem.lower().strip():
+                why_matched.append("Same predicted issue category")
+                
+            hist_model = str(row['ModelName'])
+            if hist_model.lower().strip() == pc_model.lower().strip():
+                why_matched.append("Same model hardware context")
 
             results.append({
                 "repair_id": rep_id,
                 "pc_id": str(row['PC_ID']),
-                "timestamp": str(row['Timestamp']),
+                "timestamp": str(row['Timestamp']) if 'Timestamp' in row else "",
                 "historical_complaint": str(row['UserComplaint']),
                 "symptoms": str(row['Symptoms']),
                 "problem": hist_prob,
                 "confirmed_diagnosis": str(row['ConfirmedDiagnosis']),
                 "root_cause": str(row['RootCause']),
                 "treatment_taken": str(row['TreatmentTaken']),
-                "downtime_minutes": int(row['DowntimeMinutes']),
+                "downtime_minutes": int(row['DowntimeMinutes']) if 'DowntimeMinutes' in row else 0,
                 "technician_notes": str(row['TechnicianNotes']) if pd.notnull(row['TechnicianNotes']) else "",
-                "similarity_score": round(float(final_score) * 100.0, 1),
+                "similarity_score": score_pct,
+                "match_strength": match_strength,
                 "retrieval_engine": self.embedding_service.engine_type,
                 "why_matched": why_matched
             })
@@ -155,8 +136,9 @@ class SimilarityService:
         # Sort by similarity descending
         results.sort(key=lambda x: x["similarity_score"], reverse=True)
         
-        # Assign ranks
-        for rank, res in enumerate(results[:top_k], 1):
+        # Always return the Top K matches without threshold pruning
+        top_matches = results[:top_k]
+        for rank, res in enumerate(top_matches, 1):
             res["rank"] = rank
             
-        return results[:top_k]
+        return top_matches

@@ -64,32 +64,6 @@ def get_dashboard_overview(
         "anomaly_scaler.pkl"
     )
 
-    # Load ML models
-    health_reg = joblib.load(
-        os.path.join(
-            MODELS_DIR,
-            "health_regressor.pkl"
-        )
-    )
-
-    fail_reg = joblib.load(
-        os.path.join(
-            MODELS_DIR,
-            "failure_risk_regressor.pkl"
-        )
-    )
-
-    problem_preprocessor = joblib.load(
-        os.path.join(
-            MODELS_DIR,
-            "problem_preprocessor.pkl"
-        )
-    )
-
-    fe = joblib.load(fe_path)
-    anom_model = joblib.load(anom_path)
-    anom_scaler = joblib.load(anom_scaler_path)
-
     # Default dashboard values
     avg_health = 100.0
     abnormal_count = 0
@@ -104,16 +78,15 @@ def get_dashboard_overview(
     }
 
     # ---------------------------------------------------------
-    # Fleet ML analysis
+    # Fleet ML analysis using authoritative PredictionService
     # ---------------------------------------------------------
-
     if total_pcs > 0:
+        from backend.app.services.prediction_service import PredictionService
+        ps = PredictionService()
 
-        # Convert database PCs into DataFrame
-        pc_records = []
-
+        health_sum = 0.0
         for pc in pcs:
-            pc_records.append({
+            pc_dict = {
                 "PC_ID": pc.pc_id,
                 "ModelName": pc.model_name,
                 "Department": pc.department,
@@ -123,119 +96,29 @@ def get_dashboard_overview(
                 "Temperature": pc.temperature,
                 "Voltage": pc.voltage,
                 "DiskUsage": pc.disk_usage,
-                "FanSpeed": pc.fan_speed,
-            })
-
-        df_pcs = pd.DataFrame(pc_records)
-
-        # Feature engineering
-        df_eng = fe.transform(df_pcs)
-
-        # -----------------------------------------------------
-        # Anomaly scoring
-        # -----------------------------------------------------
-
-        X_anom = df_eng[
-            list(anom_scaler.feature_names_in_)
-        ]
-
-        X_anom_scaled = anom_scaler.transform(
-            X_anom
-        )
-
-        anom_labels = anom_model.predict(
-            X_anom_scaled
-        )
-
-        raw_scores = anom_model.decision_function(
-            X_anom_scaled
-        )
-
-        anom_scores = 1.0 / (
-            1.0 + np.exp(raw_scores * 8.0)
-        )
-
-        # -----------------------------------------------------
-        # Health and failure predictions
-        # -----------------------------------------------------
-
-        X_all = problem_preprocessor.transform(
-            df_eng
-        )
-
-        health_scores = health_reg.predict(
-            X_all
-        )
-
-        failure_risks = fail_reg.predict(
-            X_all
-        )
-
-        # -----------------------------------------------------
-        # Aggregate fleet statistics
-        # -----------------------------------------------------
-
-        health_sum = 0.0
-
-        for i, pc in enumerate(pcs):
-
-            h = float(
-                np.clip(
-                    health_scores[i],
-                    0.0,
-                    100.0
-                )
-            )
-
-            f = float(
-                np.clip(
-                    failure_risks[i],
-                    0.0,
-                    100.0
-                )
-            )
-
-            a_label = (
-                "Abnormal"
-                if anom_labels[i] == -1
-                else "Normal"
-            )
-
-            a_score = float(
-                anom_scores[i]
-            )
-
-            # Calculate Risk Index
-            r_index, r_level = (
-                RiskService.calculate_risk_index(
-                    h,
-                    f,
-                    a_score
-                )
-            )
-
+                "FanSpeed": pc.fan_speed
+            }
+            res = ps.run_inference(pc_dict, "")
+            
+            h = res["predictive_health"]["health_score"]
+            r_level = res["predictive_health"]["risk_level"]
+            is_anomaly = res["anomaly"]["score"] > 0.5 or res["predictive_health"]["ood_flag"]
+            
             health_sum += h
-
-            if a_label == "Abnormal":
+            if is_anomaly:
                 abnormal_count += 1
 
-            if r_level in [
-                "High",
-                "Critical"
-            ]:
+            if r_level in ["High", "Critical"]:
                 high_risk_count += 1
 
             if h < 50.0:
                 critical_pc_count += 1
 
             risk_key = r_level.lower()
-
             if risk_key in risk_counts:
                 risk_counts[risk_key] += 1
 
-        avg_health = (
-            health_sum / total_pcs
-        )
+        avg_health = health_sum / total_pcs
 
     # ---------------------------------------------------------
     # 2. Historical Repair Counts

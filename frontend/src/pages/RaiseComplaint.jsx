@@ -42,7 +42,7 @@ export default function RaiseComplaint({ onSendToRepair }) {
     "Analyzing telemetry data & extracting features...",
     "Running multi-model predictive classifiers...",
     "Querying semantic knowledge base for similar repairs...",
-    "Calculating operational risk index & RUL...",
+    "Calculating operational risk index & maintenance urgency...",
     "Synthesizing evidence-based maintenance recommendation..."
   ];
 
@@ -662,10 +662,10 @@ export default function RaiseComplaint({ onSendToRepair }) {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
-                  {/* Failure Probability */}
+                  {/* Rule-Based Risk Indicator */}
                   <div className="p-3 bg-[#030712] border border-[#1F2937] rounded flex justify-between items-center">
                     <div>
-                      <p className="text-[10px] text-gray-500 uppercase font-medium">Near-Term Failure Risk</p>
+                      <p className="text-[10px] text-gray-500 uppercase font-medium">Rule-Based Risk Indicator</p>
                       <h4 className="text-lg font-bold text-white mt-1">
                         {analysisResult.predictive_health.near_term_failure_risk !== null ? `${analysisResult.predictive_health.near_term_failure_risk}%` : 'N/A'}
                       </h4>
@@ -673,23 +673,23 @@ export default function RaiseComplaint({ onSendToRepair }) {
                     <div className="text-right">
                       <span className={`px-2 py-1 rounded text-[10px] font-bold ${
                         analysisResult.predictive_health.will_fail_soon === null
-                          ? 'bg-gray-800 text-gray-500'
-                          : (analysisResult.predictive_health.will_fail_soon ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-500')
+                           ? 'bg-gray-800 text-gray-500'
+                           : (analysisResult.predictive_health.will_fail_soon ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-500')
                       }`}>
                         {analysisResult.predictive_health.will_fail_soon === null
                           ? 'UNAVAILABLE'
-                          : (analysisResult.predictive_health.will_fail_soon ? 'WILL FAIL SOON' : 'STABLE')}
+                          : (analysisResult.predictive_health.will_fail_soon ? 'MAINTENANCE REQUIRED' : 'STABLE')}
                       </span>
                     </div>
                   </div>
 
-                  {/* RUL prediction */}
+                  {/* Urgency Estimate */}
                   <div className="p-3 bg-[#030712] border border-[#1F2937] rounded">
-                    <p className="text-[10px] text-gray-500 uppercase font-medium">Remaining Useful Life (RUL)</p>
+                    <p className="text-[10px] text-gray-500 uppercase font-medium">Estimated Maintenance Urgency</p>
                     <h4 className="text-lg font-bold text-cyan-400 mt-1">
                       {analysisResult.predictive_health.remaining_useful_life_days !== null ? `${analysisResult.predictive_health.remaining_useful_life_days} Days` : 'N/A'}
                     </h4>
-                    <p className="text-[9px] text-gray-500 mt-0.5">Surrogate model approximation based on degradation curves.</p>
+                    <p className="text-[9px] text-gray-500 mt-0.5">Heuristic estimation based on physical stress indicators.</p>
                   </div>
 
                 </div>

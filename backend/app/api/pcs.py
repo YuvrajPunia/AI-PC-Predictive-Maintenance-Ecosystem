@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from backend.app.database import get_db
-from backend.app.models.schemas import PCRead, TelemetryRead
+from backend.app.models.schemas import PCRead, TelemetryRead, PCCreate
 from backend.app.services.pc_service import PCService
 
 router = APIRouter(prefix="/api/pcs", tags=["PCs"])
@@ -11,6 +11,11 @@ router = APIRouter(prefix="/api/pcs", tags=["PCs"])
 def list_pcs(db: Session = Depends(get_db)):
     """Retrieves all registered PCs in the organization fleet."""
     return PCService.get_all_pcs(db)
+
+@router.post("", response_model=PCRead)
+def register_pc(pc_in: PCCreate, db: Session = Depends(get_db)):
+    """Registers a new PC asset in the fleet (sensors are optional)."""
+    return PCService.register_pc(db, pc_in)
 
 @router.get("/{pc_id}", response_model=PCRead)
 def get_pc(pc_id: str, db: Session = Depends(get_db)):

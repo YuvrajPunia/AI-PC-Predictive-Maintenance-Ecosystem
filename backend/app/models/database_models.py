@@ -10,12 +10,12 @@ class PC(Base):
     model_name = Column(String, nullable=False)
     department = Column(String, nullable=False)
     location = Column(String, nullable=False)
-    cpu_usage = Column(Float, nullable=False)
-    ram_usage = Column(Float, nullable=False)
-    temperature = Column(Float, nullable=False)
-    voltage = Column(Float, nullable=False)
-    disk_usage = Column(Float, nullable=False)
-    fan_speed = Column(Float, nullable=False)
+    cpu_usage = Column(Float, nullable=True)
+    ram_usage = Column(Float, nullable=True)
+    temperature = Column(Float, nullable=True)
+    voltage = Column(Float, nullable=True)
+    disk_usage = Column(Float, nullable=True)
+    fan_speed = Column(Float, nullable=True)
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
@@ -27,12 +27,12 @@ class Telemetry(Base):
     telemetry_id = Column(Integer, primary_key=True, autoincrement=True)
     pc_id = Column(String, ForeignKey("pcs.pc_id", ondelete="CASCADE"), nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    cpu_usage = Column(Float, nullable=False)
-    ram_usage = Column(Float, nullable=False)
-    temperature = Column(Float, nullable=False)
-    voltage = Column(Float, nullable=False)
-    disk_usage = Column(Float, nullable=False)
-    fan_speed = Column(Float, nullable=False)
+    cpu_usage = Column(Float, nullable=True)
+    ram_usage = Column(Float, nullable=True)
+    temperature = Column(Float, nullable=True)
+    voltage = Column(Float, nullable=True)
+    disk_usage = Column(Float, nullable=True)
+    fan_speed = Column(Float, nullable=True)
     
     # Relationships
     pc = relationship("PC", back_populates="telemetry_records")
@@ -70,22 +70,22 @@ class AnalysisResult(Base):
     pc_id = Column(String, nullable=False)
     
     # Model classification
-    predicted_problem = Column(String, nullable=False)
-    prediction_confidence = Column(Float, nullable=False)
+    predicted_problem = Column(String, nullable=True)
+    prediction_confidence = Column(Float, nullable=True)
     
     # Anomaly detection
-    anomaly_label = Column(String, nullable=False)
-    anomaly_score = Column(Float, nullable=False)
+    anomaly_label = Column(String, nullable=True)
+    anomaly_score = Column(Float, nullable=True)
     
     # Predictive health scores
-    health_score = Column(Float, nullable=False)
-    near_term_failure_risk = Column(Float, nullable=False)
-    will_fail_soon = Column(Integer, nullable=False)  # 0 or 1
-    rul_days = Column(Integer, nullable=False)
+    health_score = Column(Float, nullable=True)
+    near_term_failure_risk = Column(Float, nullable=True)
+    will_fail_soon = Column(Integer, nullable=True)  # 0 or 1
+    rul_days = Column(Integer, nullable=True)
     
     # Operational risk index
-    risk_index = Column(Float, nullable=False)
-    risk_level = Column(String, nullable=False)
+    risk_index = Column(Float, nullable=True)
+    risk_level = Column(String, nullable=True)
     
     # Full generated recommendation content stored as JSON text
     recommendation_json = Column(Text, nullable=False)

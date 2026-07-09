@@ -1,0 +1,27 @@
+{
+    "method": "RobustMahalanobisOOD",
+    "threshold": 7.584543760013885,
+    "features": [
+        "CPUUsage",
+        "RAMUsage",
+        "Temperature",
+        "Voltage",
+        "DiskUsage",
+        "FanSpeed",
+        "TemperatureStress",
+        "VoltageDeviation",
+        "CombinedLoad",
+        "ResourcePressureIndex",
+        "CoolingEfficiencyProxy",
+        "FanTemperatureMismatch",
+        "ThermalLoadRatio",
+        "PowerInstabilityIndex",
+        "DiskStressIndex",
+        "CPU_Temp_Interaction",
+        "RAM_CPU_Interaction",
+        "Temp_VoltageDev_Interaction",
+        "Temp_FanSpeed_Ratio",
+        "Disk_CPU_Interaction",
+        "DegradationSeverityIndex"
+    ]
+}

@@ -34,56 +34,41 @@ class OfflineEmbeddingService:
 
     def _load_model(self):
         """
-        Use lightweight TF-IDF on Render.
-        Try SentenceTransformer only during local development.
+        Loads the embedding model (tries SBERT, falls back to TF-IDF if unavailable).
         """
-
-        # Render deployment:
-        # Never import SentenceTransformer / Torch.
-        if os.getenv("RENDER"):
-            self.engine_type = "TF-IDF"
-            self.model = None
-
-            print(
-                "EmbeddingService: Render detected. "
-                "Using lightweight TF-IDF engine."
-            )
-
-            self._save_config()
-            return
-
-        # Local development:
         # Try SBERT if sentence-transformers is installed.
         try:
+            # Try offline loading first
             os.environ["TRANSFORMERS_OFFLINE"] = "1"
-
             from sentence_transformers import SentenceTransformer
-
             self.model = SentenceTransformer(
                 "all-MiniLM-L6-v2",
                 device="cpu"
             )
-
             self.engine_type = "SBERT"
-
-            print(
-                "EmbeddingService: Successfully loaded "
-                "SentenceTransformer (all-MiniLM-L6-v2) engine."
-            )
-
+            print("EmbeddingService: Successfully loaded SentenceTransformer offline.")
             self._save_config()
             return
-
-        except Exception as e:
-            print(
-                f"EmbeddingService: SBERT load skipped or failed "
-                f"({str(e)}). Falling back to TF-IDF engine."
-            )
+        except Exception as e_offline:
+            print(f"EmbeddingService: Offline SBERT load failed ({e_offline}). Trying online load...")
+            try:
+                # Try online downloading (useful on Render/fresh setups)
+                os.environ["TRANSFORMERS_OFFLINE"] = "0"
+                from sentence_transformers import SentenceTransformer
+                self.model = SentenceTransformer(
+                    "all-MiniLM-L6-v2",
+                    device="cpu"
+                )
+                self.engine_type = "SBERT"
+                print("EmbeddingService: Successfully downloaded/loaded SentenceTransformer online.")
+                self._save_config()
+                return
+            except Exception as e_online:
+                print(f"EmbeddingService: Online SBERT load failed ({e_online}). Falling back to TF-IDF.")
 
         # Lightweight fallback
         self.engine_type = "TF-IDF"
         self.model = None
-
         self._save_config()
 
     def _save_config(self):
@@ -117,26 +102,42 @@ class OfflineEmbeddingService:
             return
 
         df = pd.read_csv(REPAIR_CSV_PATH)
+        if "RepairID" in df.columns and "Repair_ID" not in df.columns:
+            df = df.rename(columns={"RepairID": "Repair_ID"})
 
-        # Ensure complaint text is valid
-        df["UserComplaint"] = (
-            df["UserComplaint"]
-            .fillna("")
-            .astype(str)
-        )
+        # Create richer retrieval documents with normalized text fields
+        def clean_norm(val):
+            if pd.isnull(val):
+                return ""
+            return " ".join(str(val).lower().strip().split())
 
-        complaints = df["UserComplaint"].tolist()
+        rich_docs = []
+        for _, row in df.iterrows():
+            comp = clean_norm(row.get("UserComplaint", ""))
+            symp = clean_norm(row.get("Symptoms", ""))
+            prob = clean_norm(row.get("ProblemDetected", ""))
+            treat = clean_norm(row.get("TreatmentTaken", ""))
+            
+            doc = f"complaint: {comp}"
+            if symp:
+                doc += f" | symptoms: {symp}"
+            if prob:
+                doc += f" | problem: {prob}"
+            if treat:
+                doc += f" | treatment: {treat}"
+            rich_docs.append(doc)
+
         repair_ids = df["Repair_ID"].tolist()
 
         print(
             f"Building semantic index for "
-            f"{len(complaints)} repair complaints "
+            f"{len(rich_docs)} rich repair documents "
             f"using {self.engine_type}..."
         )
 
         if self.engine_type == "SBERT":
             embeddings = self.model.encode(
-                complaints,
+                rich_docs,
                 show_progress_bar=False
             )
 
@@ -149,7 +150,7 @@ class OfflineEmbeddingService:
 
             embeddings = (
                 self.vectorizer
-                .fit_transform(complaints)
+                .fit_transform(rich_docs)
                 .toarray()
             )
 

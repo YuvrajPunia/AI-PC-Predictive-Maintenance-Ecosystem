@@ -10,12 +10,12 @@ class PCBase(BaseModel):
     location: str
 
 class PCRead(PCBase):
-    cpu_usage: float
-    ram_usage: float
-    temperature: float
-    voltage: float
-    disk_usage: float
-    fan_speed: float
+    cpu_usage: Optional[float] = None
+    ram_usage: Optional[float] = None
+    temperature: Optional[float] = None
+    voltage: Optional[float] = None
+    disk_usage: Optional[float] = None
+    fan_speed: Optional[float] = None
     last_updated: datetime
 
     class Config:
@@ -26,20 +26,41 @@ class TelemetryRead(BaseModel):
     telemetry_id: int
     pc_id: str
     timestamp: datetime
-    cpu_usage: float
-    ram_usage: float
-    temperature: float
-    voltage: float
-    disk_usage: float
-    fan_speed: float
+    cpu_usage: Optional[float] = None
+    ram_usage: Optional[float] = None
+    temperature: Optional[float] = None
+    voltage: Optional[float] = None
+    disk_usage: Optional[float] = None
+    fan_speed: Optional[float] = None
 
     class Config:
         from_attributes = True
 
 # --- Analysis Request ---
+class CurrentReadingsInput(BaseModel):
+    temperature: Optional[float] = Field(None, ge=-20, le=150, description="Manual Temperature override in °C")
+    fan_speed: Optional[float] = Field(None, ge=0, description="Manual Fan Speed override in RPM")
+    cpu_usage: Optional[float] = Field(None, ge=0, le=100, description="Manual CPU usage override in %")
+    ram_usage: Optional[float] = Field(None, ge=0, le=100, description="Manual RAM usage override in %")
+    voltage: Optional[float] = Field(None, gt=0, le=30, description="Manual Voltage override in V")
+    disk_usage: Optional[float] = Field(None, ge=0, le=100, description="Manual Disk usage override in %")
+
 class AnalysisRequest(BaseModel):
     pc_id: str = Field(..., description="Unique identifier of the PC to analyze")
     complaint: str = Field(..., max_length=2000, description="The user complaint text")
+    current_readings: Optional[CurrentReadingsInput] = None
+
+# --- New PC Creation ---
+class PCCreate(BaseModel):
+    model_name: str = Field(..., min_length=1, max_length=200, description="Hardware model name")
+    department: str = Field(..., min_length=1, max_length=200, description="Department assignment")
+    location: str = Field(..., min_length=1, max_length=200, description="Physical location")
+    cpu_usage: Optional[float] = Field(None, ge=0, le=100)
+    ram_usage: Optional[float] = Field(None, ge=0, le=100)
+    temperature: Optional[float] = Field(None, ge=-50, le=200)
+    voltage: Optional[float] = Field(None, gt=0, le=50)
+    disk_usage: Optional[float] = Field(None, ge=0, le=100)
+    fan_speed: Optional[float] = Field(None, ge=0, le=20000)
 
 # --- Similar Repairs schema ---
 class SimilarRepairCase(BaseModel):
@@ -57,6 +78,7 @@ class SimilarRepairCase(BaseModel):
     downtime_minutes: int
     technician_notes: str
     why_matched: List[str]
+    match_strength: Optional[str] = None
 
 # --- Recommendation Detail ---
 class RecommendationDetail(BaseModel):
@@ -71,26 +93,30 @@ class RecommendationDetail(BaseModel):
 
 # --- Model prediction components ---
 class ProblemAnalysisDetail(BaseModel):
-    sensor_prediction: str
-    sensor_confidence: float
+    sensor_prediction: Optional[str] = None
+    sensor_confidence: Optional[float] = None
     complaint_prediction: str
     complaint_confidence: float
     final_assessment: str
     agreement_status: str
+    temperature_evidence_level: Optional[str] = None
+    multi_fault_profile: Optional[Dict[str, Any]] = None
 
 class PredictiveHealthDetail(BaseModel):
-    health_score: float
-    health_band: str
-    near_term_failure_risk: float
-    will_fail_soon: bool
-    failure_confidence: float
-    remaining_useful_life_days: int
-    risk_index: float
-    risk_level: str
+    health_score: Optional[float] = None
+    health_band: Optional[str] = None
+    near_term_failure_risk: Optional[float] = None
+    will_fail_soon: Optional[bool] = None
+    failure_confidence: Optional[float] = None
+    remaining_useful_life_days: Optional[int] = None
+    risk_index: Optional[float] = None
+    risk_level: Optional[str] = None
+    ood_flag: Optional[bool] = None
+    ood_warning: Optional[str] = None
 
 class AnomalyDetail(BaseModel):
-    label: str
-    score: float
+    label: Optional[str] = None
+    score: Optional[float] = None
 
 class ExplainabilityDetail(BaseModel):
     method: str
@@ -105,14 +131,14 @@ class ForecastDetail(BaseModel):
     temperature_forecast: Optional[List[ForecastDataPoint]] = None
     voltage_forecast: Optional[List[ForecastDataPoint]] = None
     cpu_usage_forecast: Optional[List[ForecastDataPoint]] = None
-    status: str  # "success" or "insufficient_history"
+    status: str  # "success", "insufficient_history", or "unavailable"
 
 # --- Complete API Response for Complaint Analysis ---
 class AnalysisResponse(BaseModel):
     analysis_id: str
     pc: PCBase
-    current_sensors: Dict[str, float]
-    engineered_features: Dict[str, float]
+    current_sensors: Dict[str, Optional[float]]
+    engineered_features: Dict[str, Optional[float]]
     problem_analysis: ProblemAnalysisDetail
     predictive_health: PredictiveHealthDetail
     anomaly: AnomalyDetail
@@ -121,6 +147,8 @@ class AnalysisResponse(BaseModel):
     similar_cases: List[SimilarRepairCase]
     recommendation: RecommendationDetail
     forecasting: ForecastDetail
+    sensor_sources: Optional[Dict[str, Dict[str, Any]]] = None
+    warnings: Optional[List[str]] = None
 
 # --- Repair Completion Request ---
 class RepairCompleteRequest(BaseModel):

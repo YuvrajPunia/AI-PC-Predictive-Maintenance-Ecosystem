@@ -170,8 +170,12 @@ export default function RepairResolution({ activeCase, onRepairCompleted }) {
                     <p className="text-sm font-bold text-white">{activeCase.analysis.predictive_health.health_score}%</p>
                   </div>
                   <div className="bg-[#030712] p-2 border border-[#1F2937] rounded">
-                    <p className="text-gray-500 text-[9px] uppercase">RUL Estimate</p>
-                    <p className="text-sm font-bold text-white">{activeCase.analysis.predictive_health.remaining_useful_life_days} Days</p>
+                    <p className="text-gray-500 text-[9px] uppercase">Urgency Estimate</p>
+                    <p className="text-sm font-bold text-white">
+                      {activeCase.analysis.predictive_health.remaining_useful_life_days !== null 
+                        ? `${activeCase.analysis.predictive_health.remaining_useful_life_days} Days` 
+                        : 'N/A'}
+                    </p>
                   </div>
                   <div className="bg-[#030712] p-2 border border-[#1F2937] rounded">
                     <p className="text-gray-500 text-[9px] uppercase">Anomaly label</p>

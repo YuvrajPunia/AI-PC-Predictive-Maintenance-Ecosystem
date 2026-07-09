@@ -4,6 +4,7 @@ import RaiseComplaint from './pages/RaiseComplaint';
 import RepairResolution from './pages/RepairResolution';
 import PCFleet from './pages/PCFleet';
 import RepairHistory from './pages/RepairHistory';
+import ErrorBoundary from './components/ErrorBoundary';
 import { 
   Shield, LayoutDashboard, AlertCircle, PenTool, 
   Layers, History, Settings 
@@ -103,7 +104,9 @@ export default function App() {
 
       {/* Main Layout Area */}
       <div className="flex-1 flex flex-col overflow-hidden bg-dark-bg">
-        {tabs.find(tab => tab.id === activeTab)?.component}
+        <ErrorBoundary>
+          {tabs.find(tab => tab.id === activeTab)?.component}
+        </ErrorBoundary>
       </div>
 
     </div>
