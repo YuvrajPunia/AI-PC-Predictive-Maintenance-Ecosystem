@@ -81,8 +81,8 @@ def get_dashboard_overview(
     # Fleet ML analysis using authoritative PredictionService
     # ---------------------------------------------------------
     if total_pcs > 0:
-        from backend.app.api.predictions import get_prediction_service
-        ps = get_prediction_service()
+        from backend.app.services.prediction_service import PredictionService
+        ps = PredictionService()
 
         health_sum = 0.0
         for pc in pcs:
@@ -98,7 +98,7 @@ def get_dashboard_overview(
                 "DiskUsage": pc.disk_usage,
                 "FanSpeed": pc.fan_speed
             }
-            res = ps.run_inference(pc_dict, "", explain=False)
+            res = ps.run_inference(pc_dict, "")
             
             h = res["predictive_health"]["health_score"]
             r_level = res["predictive_health"]["risk_level"]

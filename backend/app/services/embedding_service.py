@@ -11,8 +11,6 @@ from backend.app.config import MODELS_DIR, REPAIR_CSV_PATH
 
 
 class OfflineEmbeddingService:
-    _shared_model = None  # Class-level SBERT cache
-
     def __init__(self):
         self.models_dir = MODELS_DIR
         self.embeddings_path = os.path.join(
@@ -38,14 +36,6 @@ class OfflineEmbeddingService:
         """
         Loads the embedding model (tries SBERT, falls back to TF-IDF if unavailable).
         """
-        # Check if already loaded in the shared class-level cache
-        if OfflineEmbeddingService._shared_model is not None:
-            self.model = OfflineEmbeddingService._shared_model
-            self.engine_type = "SBERT"
-            print("EmbeddingService: Reusing shared SentenceTransformer model instance.")
-            self._save_config()
-            return
-
         # Try SBERT if sentence-transformers is installed.
         try:
             # Try offline loading first
@@ -56,7 +46,6 @@ class OfflineEmbeddingService:
                 device="cpu"
             )
             self.engine_type = "SBERT"
-            OfflineEmbeddingService._shared_model = self.model
             print("EmbeddingService: Successfully loaded SentenceTransformer offline.")
             self._save_config()
             return
@@ -71,7 +60,6 @@ class OfflineEmbeddingService:
                     device="cpu"
                 )
                 self.engine_type = "SBERT"
-                OfflineEmbeddingService._shared_model = self.model
                 print("EmbeddingService: Successfully downloaded/loaded SentenceTransformer online.")
                 self._save_config()
                 return

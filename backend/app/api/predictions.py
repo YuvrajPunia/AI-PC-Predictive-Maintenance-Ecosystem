@@ -11,21 +11,8 @@ from backend.app.services.similarity_service import SimilarityService
 from backend.app.services.recommendation_service import RecommendationService
 
 router = APIRouter(prefix="/api/analyze", tags=["AI Analysis"])
-
-_prediction_service = None
-_similarity_service = None
-
-def get_prediction_service():
-    global _prediction_service
-    if _prediction_service is None:
-        _prediction_service = PredictionService()
-    return _prediction_service
-
-def get_similarity_service():
-    global _similarity_service
-    if _similarity_service is None:
-        _similarity_service = SimilarityService()
-    return _similarity_service
+prediction_service = PredictionService()
+similarity_service = SimilarityService()
 
 @router.post("", response_model=AnalysisResponse)
 def analyze_complaint(request: AnalysisRequest, db: Session = Depends(get_db)):
@@ -104,8 +91,8 @@ def analyze_complaint(request: AnalysisRequest, db: Session = Depends(get_db)):
         # Predict complaint category only
         complaint_pred = "No Problem"
         complaint_conf = 1.0
-        nlp_vectorizer = get_prediction_service().models.get('complaint_vectorizer')
-        nlp_cls = get_prediction_service().models.get('complaint_classifier')
+        nlp_vectorizer = prediction_service.models.get('complaint_vectorizer')
+        nlp_cls = prediction_service.models.get('complaint_classifier')
         
         if nlp_vectorizer and nlp_cls:
             X_text = nlp_vectorizer.transform([request.complaint])
@@ -180,7 +167,7 @@ def analyze_complaint(request: AnalysisRequest, db: Session = Depends(get_db)):
             "LastUpdated": pc.last_updated.isoformat()
         }
         
-        analysis = get_prediction_service().run_inference(
+        analysis = prediction_service.run_inference(
             pc_row=pc_row,
             complaint_text=request.complaint,
             telemetry_history=telemetry_history
@@ -196,7 +183,7 @@ def analyze_complaint(request: AnalysisRequest, db: Session = Depends(get_db)):
         risk_level = analysis["predictive_health"]["risk_level"]
 
     # 5. Retrieve top 3 similar completed repairs
-    similar_cases = get_similarity_service().retrieve_similar_cases(
+    similar_cases = similarity_service.retrieve_similar_cases(
         query_complaint=request.complaint,
         predicted_problem=fused_problem or "No Problem",
         pc_model=pc.model_name,
