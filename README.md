@@ -150,3 +150,9 @@ npm run dev
 
 ## Synthetic Data Disclaimer
 All PC records, incident locations, departments, employee identities, telemetry metrics, and repair logs are synthetic and created purely for academic demonstration and simulation. They do not represent real-world incidents, infrastructure, operational failures, or assets of the DRDO or any other organization.
+
+## Development Conversation
+
+This project's development and debugging conversation with ChatGPT:
+
+https://chatgpt.com/share/6a51e325-5494-83e8-a228-0081e9e40e3c
